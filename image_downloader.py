@@ -6,8 +6,7 @@ import subprocess
 import os
 from PIL import Image
 
-#url = str(input("Input a URL: ))
-url = "https://onepiecechapters.com/chapters/2305/one-piece-chapter-1052"
+url = str(input("Input a URL: "))
 
 last_slash = url.rindex('/')
 folder_name = url[last_slash + 1::]
@@ -44,3 +43,4 @@ rgb_images[0].save(
         pdf_path, "PDF" ,resolution=100.0, save_all=True, append_images=rgb_images[1::]
 )
 
+subprocess.run(['rm', '-rf', folder_name + '/'])
