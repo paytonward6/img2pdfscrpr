@@ -10,14 +10,13 @@ url = str(input("Input a URL: "))
 
 last_slash = url.rindex('/')
 folder_name = url[last_slash + 1::]
-print(folder_name)
+subprocess.run(['mkdir', folder_name])
 
 response = requests.get(url)
 
 soup = BeautifulSoup(response.text, "html.parser")
 
 image_links = soup.find_all("img")
-subprocess.run(['mkdir', folder_name])
 
 images_to_convert = []
 for image in image_links:
