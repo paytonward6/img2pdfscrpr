@@ -1,7 +1,5 @@
 from bs4 import BeautifulSoup
 import requests
-#import urllib.request
-#import shutil
 import subprocess
 from PIL import Image
 import re
@@ -54,7 +52,7 @@ def main():
         if re.search('^http|^https', image_to_download):
             last_slash = image_to_download.rindex('/')
             file_name = image_to_download[last_slash + 1::]
-            subprocess.run(['wget', '-O', folder_name + '/' + file_name, image_to_download])
+            subprocess.run(['curl', '-o', folder_name + '/' + file_name, image_to_download])
             images_to_convert.append(file_name)
 
     #Create a list of single Image objects (not combined side by side)
