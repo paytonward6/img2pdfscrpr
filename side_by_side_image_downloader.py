@@ -1,9 +1,8 @@
 from bs4 import BeautifulSoup
 import requests
-import urllib.request
-import shutil
+#import urllib.request
+#import shutil
 import subprocess
-import os
 from PIL import Image
 import re
 import traceback
@@ -70,26 +69,27 @@ def main():
     
     iter_max = len(rgb_images)
     file_name = folder_name + '/combined/image_0.jpg'
-    combined_images = []
 
     """ For for manga, oftentimes the first page, so we
         it on it's own page
     """
-    combined = []
+
+    i = 0
+    combined_images = []
     if offset == 'single' or offset == 's':
-        combined_images = [file_name]
+        combined_images.append(file_name)
         if len(rgb_images) != 0:
             rgb_images[0].save(file_name)
+        i = 1
     elif offset == 'double' or 'd':
         pass
 
-    i = 0
     while i < iter_max:
         max_height = 0
         total_width = 0
         try:
             # If the width is greater than 1400, put that image on it's own page
-            if rgb_images[i].size[0] > 1400 or i == iter_max - 1:
+            if rgb_images[i].size[0] > 1400 or i == iter_max - 1 or (rgb_images[i].size[0] < 1300 and rgb_images[i + 1].size[0] > 1400 and i != 1):
                 file_name = folder_name + "/combined/image_" + str(i) + ".jpg"
                 rgb_images[i].save(file_name)
                 combined_images.append(file_name)
