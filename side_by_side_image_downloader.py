@@ -7,17 +7,31 @@ import os
 from PIL import Image
 import re
 import traceback
+import sys
 
 def main():
-    url = str(input("Input a URL: "))
+    """ refers to if the first page should be made a double spread or not
+
+    Options are: 
+        single, s -> for Single first Page
+        double, d -> for doubled first page
+    """
+    offset = ""
+    if len(sys.argv) < 2:
+        print('Must provide option of \"single\" or \"double\"')
+        quit()
+    else:
+        offset = str(sys.argv[1])
     
+    url = str(input("Input a URL: "))
+    url = re.sub('/$', '', url)
     """
     Get final path of the URL make that the name of the folder
     (also the name of the PDF later on)
     """
     last_slash = url.rindex('/')
     folder_name = url[last_slash + 1::]
-    
+
     """
     Create a directory and a subdirectory to put the images to download in
     """
@@ -56,14 +70,20 @@ def main():
     
     iter_max = len(rgb_images)
     file_name = folder_name + '/combined/image_0.jpg'
-    combined_images = [file_name]
+    combined_images = []
 
     """ For for manga, oftentimes the first page, so we
         it on it's own page
     """
-    if len(rgb_images) != 0:
-        rgb_images[0].save(file_name)
-    i = 1
+    combined = []
+    if offset == 'single' or offset == 's':
+        combined_images = [file_name]
+        if len(rgb_images) != 0:
+            rgb_images[0].save(file_name)
+    elif offset == 'double' or 'd':
+        pass
+
+    i = 0
     while i < iter_max:
         max_height = 0
         total_width = 0
@@ -93,6 +113,9 @@ def main():
                 new_img.save(file_name)
                 combined_images.append(file_name)
                 i += 2
+        except KeyboardInterrupt:
+            traceback.print_exc()
+            quit()
         except:
             traceback.print_exc()
     #Write the opened combined Images to a new list
