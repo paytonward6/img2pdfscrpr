@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup
 import requests
 import subprocess
 from PIL import Image
+from PIL import UnidentifiedImageError
 import re
 import traceback
 import sys
@@ -58,7 +59,11 @@ def main():
     #Create a list of single Image objects (not combined side by side)
     images = []
     for f in images_to_convert:
-        images.append(Image.open('./' + folder_name + '/' + f))
+        try:
+            images.append(Image.open('./' + folder_name + '/' + f))
+        except UnidentifiedImageError: 
+            traceback.print_exc()
+
 
     #Removes 'RGBA' warning
     rgb_images = []
