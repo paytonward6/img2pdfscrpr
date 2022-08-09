@@ -91,12 +91,12 @@ def main():
         total_width = 0
         try:
             # If the width is greater than 1400, put that image on it's own page
-            if rgb_images[i].size[0] > 1400 or i == iter_max - 1 or (rgb_images[i].size[0] < 1300 and rgb_images[i + 1].size[0] > 1400 and i != 1):
+            if rgb_images[i].size[0] > rgb_images[i].size[1] or i == iter_max - 1 or (rgb_images[i].size[0] < rgb_images[i].size[1] and rgb_images[i + 1].size[0] > rgb_images[i+1].size[1] and i != 1):
                 file_name = folder_name + "/combined/image_" + str(i) + ".jpg"
                 rgb_images[i].save(file_name)
                 combined_images.append(file_name)
                 i += 1
-            elif i < iter_max - 1 and rgb_images[i].size[0] < 1300 and rgb_images[i+1].size[0] < 1300:
+            elif i < iter_max - 1 and rgb_images[i].size[0] < rgb_images[i].size[1] and rgb_images[i+1].size[0] < rgb_images[i + 1].size[1]:
                 image_array = [rgb_images[i + 1], rgb_images[i]]
                 total_width = 0
                 max_height = 0
