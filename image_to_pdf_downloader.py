@@ -7,35 +7,42 @@ import re
 import traceback
 import sys
 from pathlib import Path
+import argparse
 
 class ImageDownloader:
+    VALID_OFFSETS = ['s', 'single', 'd', 'double']
+
+    PARSER = argparse.ArgumentParser(description="Downloads images from webpages and generates a side-by-side PDF (optimized manga)")
+    PARSER.add_argument("-o", "--offset", type=str, help='used to specify if the first page should be a (s)ingle or (d)ouble spread')
+    PARSER.add_argument("-f", "--file", type=str, help='specify text file of URLs from which to download')
+     
     def __init__(self):
-        self.offset = self.__check_page_offset()
-        self.url = self.get_url()
+        self.args = self.PARSER.parse_args()
+        self.offset = self.__check_page_offset() 
+        if self.args.file:
+            self.url_file = self.args.file.strip()
+        else:
+            self.url = self.get_url()
         self.folder_name = self.get_folder_name()
         self.__create_temporary_folder()
 
-    def __check_page_offset(self, offset = 's'):
+    def __check_page_offset(self):
         """ refers to if the first page should be made a double spread or not
 
         Options are: 
             single, s -> for Single first Page
             double, d -> for doubled first page
         """
-        valid_offsets = ['s', 'single', 'd', 'double']
-        if len(sys.argv) >= 2:
-            if sys.argv[1] in valid_offsets:
-                return sys.argv[1]
-            else:
-                print('Must provide option of \"(s)ingle\" or \"(d)ouble\"')
-                quit()
+        if self.args.offset in (item for sublist in self.VALID_OFFSETS for item in sublist):
+            return self.args.offset
         else:
-            print("Using default of setting separating first page (single)")
-            return offset
+            print(f"{self.args.offset} is not a valid offset. Defaulting to (s)ingle offset")
+            return 's'
 
     def get_url(self):
         url = str(input("Input a URL: "))
         url = re.sub('/$', '', url)
+        print()
         return url
 
     def get_folder_name(self):
@@ -46,10 +53,13 @@ class ImageDownloader:
         (i.e. foo.com/directories/bar will make 'bar' the folder name)
         (also the name of the PDF later on; bar.pdf)
         """
-        last_slash = self.url.rindex('/')
-        return self.url[last_slash + 1::]
+        if not self.args.file:
+            last_slash = self.url.rindex('/')
+            return self.url[last_slash + 1::]
+        else:
+            return Path(self.url_file).stem # returns the name of the file without the extension
 
-    def __create_temporary_folder(self):
+    def __create_temporary_folder(self) -> None:
         """
         Create a directory and a subdirectory to put the images to download in
         """
@@ -60,7 +70,7 @@ class ImageDownloader:
             print(f"\nFile or directory '{self.folder_name}(.pdf)' already exists; Exiting.")
             quit()
 
-    def is_path_conflicts(self):
+    def is_path_conflicts(self) -> bool:
         """
         Returns 'True' if there are conflicts; else False
         """
@@ -72,7 +82,7 @@ class ImageDownloader:
         else:
             return False
 
-    def scrape_webpage(self):
+    def scrape_webpage(self) -> None:
         response = requests.get(self.url)
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -87,32 +97,30 @@ class ImageDownloader:
 
             #Only want the URLs that begin with http or https
             if re.search('^http|^https', image_to_download):
-                last_slash = image_to_download.rindex('/')
                 file_name = f"{self.folder_name + '_' + str(i) + '.jpg'}"
                 subprocess.run(['curl', '-o', self.folder_name + '/' + file_name, image_to_download])
                 self.images_to_convert.append(file_name)
                 i += 1
     
-    def convert_images_to_RGB(self):
-        images = []
+
+    def convert_images_to_RGB(self) -> None:
+        """
+        Loops through each image downloaded and converts to RGB after opening
+        (PIL gets upset if not converted; need to look into it more)
+        """
+        self.rgb_images = []
         for f in self.images_to_convert:
             try:
-                images.append(Image.open('./' + self.folder_name + '/' + f))
+                self.rgb_images.append(Image.open('./' + self.folder_name + '/' + f).convert('RGB')) # last method removes RGBA warning
             except UnidentifiedImageError: 
                 traceback.print_exc()
             except:
                 traceback.print_exc()
 
-        #Removes 'RGBA' warning
-        self.rgb_images = []
-        for image in images:
-            self.rgb_images.append(image.convert('RGB'))
-
     # ISSUE IS IN COMBINE IMAGES
-    def combine_images(self):
+    def combine_images(self) -> None:
 
         iter_max = len(self.rgb_images)
-        print(f"{iter_max=}")
         file_name = self.folder_name + '/combined/image_0.jpg'
 
         """ For for manga, oftentimes the first page, so we
@@ -121,7 +129,7 @@ class ImageDownloader:
 
         i = 0
         self.combined_images = []
-        if self.offset == 'single' or self.offset == 's':
+        if self.offset in self.VALID_OFFSETS[0]: # if wanting to put first image on it's own page
             self.combined_images.append(file_name)
             if len(self.rgb_images) != 0:
                 self.rgb_images[0].save(file_name)
@@ -164,7 +172,7 @@ class ImageDownloader:
             except:
                 traceback.print_exc()
 
-    def generate_pdf(self):
+    def generate_pdf(self) -> None:
         #Write the opened combined Images to a new list
         images = []
         for f in self.combined_images:
@@ -176,18 +184,23 @@ class ImageDownloader:
         images[0].save(
                 pdf_path, "PDF" ,resolution=100.0, save_all=True, append_images=images[1::]
         )
+    
+    def run(self) -> None:
+        """
+        A single method to download images, combine, and cleanup
+        """
+        self.scrape_webpage()
+        self.convert_images_to_RGB()
+        self.combine_images()
+        self.generate_pdf()
+        self.cleanup()
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         #Cleanup images in directory
         subprocess.run(['rm', '-rf', self.folder_name])
 
 if __name__ == "__main__":
     imgdwnldr = ImageDownloader()
-    imgdwnldr.scrape_webpage()
-    imgdwnldr.convert_images_to_RGB()
-    imgdwnldr.combine_images()
-    imgdwnldr.generate_pdf()
-    imgdwnldr.cleanup()
-
+    imgdwnldr.run()
     
 
