@@ -2,13 +2,10 @@
 
 ## Usage
 ```shell
-python3 image_to_pdf_scraper.py
+python3 img2pdfscrpr.py
 ```
 Or use a file of URLs
 ```shell
-python3 image_to_pdf_scraper.py -f foo.txt
+python3 img2pdfscrpr.py -f foo.txt
 ```
-See
-```shell
-python3 image_to_pdf_scraper.py -h
-```
+See `python3 img2pdfscrpr.py -h` for more
