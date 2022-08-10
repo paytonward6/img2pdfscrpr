@@ -5,7 +5,6 @@ from PIL import Image
 from PIL import UnidentifiedImageError
 import re
 import traceback
-import sys
 from pathlib import Path
 import argparse
 
@@ -36,7 +35,7 @@ class ImageDownloader:
         self.folder_name = self.get_folder_name()
         self.__create_temporary_folder()
 
-    def __check_page_offset(self):
+    def __check_page_offset(self) -> str:
         """ 
         refers to if the first should be made a double spread or not
 
@@ -52,13 +51,13 @@ class ImageDownloader:
                    "Defaulting to (s)ingle offset")
             return 's'
 
-    def get_url(self):
+    def get_url(self) -> str:
         url = str(input("Input a URL: "))
         url = re.sub('/$', '', url)
         print()
         return url
 
-    def get_folder_name(self):
+    def get_folder_name(self) -> str:
         """
         Get final path of the URL and make that the name 
         of the temporary folder to store images in before 
@@ -73,6 +72,7 @@ class ImageDownloader:
         else:
             # The name of the file without the extension
             return Path(self.url_file).stem 
+
     def __create_temporary_folder(self) -> None:
         """
         Create a directory and a subdirectory to put the images to download in
@@ -97,13 +97,13 @@ class ImageDownloader:
         else:
             return False
 
-    def scrape_webpage(self) -> None:
+    def scrape_webpage(self) -> list:
         response = requests.get(self.url)
         soup = BeautifulSoup(response.text, "html.parser")
 
         #Obtain all img tags at the specified URL
         image_links = soup.find_all("img")
-        self.images_to_convert = []
+        images_to_convert = []
         i = 0
         for image in image_links:
 
@@ -115,29 +115,30 @@ class ImageDownloader:
                 file_name = f"{self.folder_name + '_' + str(i) + '.jpg'}"
                 subprocess.run(['curl', '-o', self.folder_name + '/'
                                + file_name, image_to_download])
-                self.images_to_convert.append(file_name)
+                images_to_convert.append(file_name)
                 i += 1
     
+        return images_to_convert
 
-    def convert_images_to_RGB(self) -> None:
+    def convert_images_to_RGB(self, images_to_convert) -> list:
         """
         Loops through each image downloaded and converts to RGB after 
         opening (PIL gets upset if not converted; need to look into it more)
         """
-        self.rgb_images = []
-        for f in self.images_to_convert:
+        rgb_images = []
+        for f in images_to_convert:
             try:
-                self.rgb_images.append(Image.open('./' + self.folder_name + '/' + f)
+                rgb_images.append(Image.open('./' + self.folder_name + '/' + f)
                     .convert('RGB')) # Last method removes RGBA warning
             except UnidentifiedImageError: 
                 traceback.print_exc()
             except:
                 traceback.print_exc()
+        return rgb_images
 
-    # ISSUE IS IN COMBINE IMAGES
-    def combine_images(self) -> None:
+    def combine_images(self, rgb_images) -> list:
 
-        iter_max = len(self.rgb_images)
+        iter_max = len(rgb_images)
         file_name = self.folder_name + '/combined/image_0.jpg'
 
         """ For for manga, oftentimes the first page, so we
@@ -145,13 +146,13 @@ class ImageDownloader:
         """
 
         i = 0
-        self.combined_images = []
+        combined_images = []
 
         # To determine if the
         if self.offset in self.VALID_OFFSETS[0]: 
-            self.combined_images.append(file_name)
-            if len(self.rgb_images) != 0:
-                self.rgb_images[0].save(file_name)
+            combined_images.append(file_name)
+            if len(rgb_images) != 0:
+                rgb_images[0].save(file_name)
             i = 1
 
         while i < iter_max:
@@ -160,21 +161,21 @@ class ImageDownloader:
             try:
                 # If the width is greater than 1400, put that image on it's own page
                     # size[0] -> width, size[1] -> height
-                if (self.rgb_images[i].size[0] > self.rgb_images[i].size[1]
+                if (rgb_images[i].size[0] > rgb_images[i].size[1]
                     or i == iter_max - 1
-                    or (self.rgb_images[i].size[0] < self.rgb_images[i].size[1]
-                        and self.rgb_images[i + 1].size[0] > self.rgb_images[i+1].size[1]
+                    or (rgb_images[i].size[0] < rgb_images[i].size[1]
+                        and rgb_images[i + 1].size[0] > rgb_images[i+1].size[1]
                         and i != 1)):
                     file_name = self.folder_name + "/combined/image_" + str(i) + ".jpg"
-                    self.rgb_images[i].save(file_name)
-                    self.combined_images.append(file_name)
+                    rgb_images[i].save(file_name)
+                    combined_images.append(file_name)
                     i += 1
 
                 elif (i < iter_max - 1 
-                      and self.rgb_images[i].size[0] < self.rgb_images[i].size[1] 
-                      and self.rgb_images[i+1].size[0] < self.rgb_images[i + 1].size[1]):
+                      and rgb_images[i].size[0] < rgb_images[i].size[1] 
+                      and rgb_images[i+1].size[0] < rgb_images[i + 1].size[1]):
 
-                    image_array = [self.rgb_images[i + 1], self.rgb_images[i]]
+                    image_array = [rgb_images[i + 1], rgb_images[i]]
 
                     total_width = 0
                     max_height = 0
@@ -191,7 +192,7 @@ class ImageDownloader:
                         new_img.paste(img, (current_width,0))
                         current_width += img.size[0]
                     new_img.save(file_name)
-                    self.combined_images.append(file_name)
+                    combined_images.append(file_name)
                     i += 2
                 else:
                     print('oh no')
@@ -200,11 +201,12 @@ class ImageDownloader:
                 quit()
             except:
                 traceback.print_exc()
+        return combined_images
 
-    def generate_pdf(self) -> None:
+    def generate_pdf(self, combined_images) -> None:
         #Write the opened combined Images to a new list
         images = []
-        for f in self.combined_images:
+        for f in combined_images:
             images.append(Image.open(f))
 
         pdf_path = "./" + self.folder_name + ".pdf"
@@ -221,10 +223,10 @@ class ImageDownloader:
         """
         A single method to download images, combine, and cleanup
         """
-        self.scrape_webpage()
-        self.convert_images_to_RGB()
-        self.combine_images()
-        self.generate_pdf()
+        images = self.scrape_webpage()
+        rgb_images = self.convert_images_to_RGB(images)
+        combined_images = self.combine_images(rgb_images)
+        self.generate_pdf(combined_images)
         self.cleanup()
 
     def cleanup(self) -> None:
