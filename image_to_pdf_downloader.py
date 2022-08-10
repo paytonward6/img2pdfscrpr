@@ -10,33 +10,46 @@ from pathlib import Path
 import argparse
 
 class ImageDownloader:
-    VALID_OFFSETS = ['s', 'single', 'd', 'double']
+    VALID_OFFSETS = [
+        's', 'single',
+        'd', 'double'
+        ]
 
-    PARSER = argparse.ArgumentParser(description="Downloads images from webpages and generates a side-by-side PDF (optimized manga)")
-    PARSER.add_argument("-o", "--offset", type=str, help='used to specify if the first page should be a (s)ingle or (d)ouble spread')
-    PARSER.add_argument("-f", "--file", type=str, help='specify text file of URLs from which to download')
+    PARSER = argparse.ArgumentParser(
+        description="Downloads images from webpages and generates "
+                     "a side-by-side PDF (optimized manga)")
+    PARSER.add_argument("-o", "--offset", type=str,
+        help="used to specify if the first page should "
+             "be a (s)ingle or (d)ouble spread")
+    PARSER.add_argument("-f", "--file", type=str,
+        help='specify text file of URLs from which to download')
      
     def __init__(self):
         self.args = self.PARSER.parse_args()
         self.offset = self.__check_page_offset() 
+
         if self.args.file:
             self.url_file = self.args.file.strip()
         else:
             self.url = self.get_url()
+
         self.folder_name = self.get_folder_name()
         self.__create_temporary_folder()
 
     def __check_page_offset(self):
-        """ refers to if the first page should be made a double spread or not
+        """ 
+        refers to if the first should be made a double spread or not
 
         Options are: 
             single, s -> for Single first Page
             double, d -> for doubled first page
         """
-        if self.args.offset in (item for sublist in self.VALID_OFFSETS for item in sublist):
+        if (self.args.offset in 
+           (item for sublist in self.VALID_OFFSETS for item in sublist)):
             return self.args.offset
         else:
-            print(f"{self.args.offset} is not a valid offset. Defaulting to (s)ingle offset")
+            print(f"{self.args.offset} is not a valid offset. "
+                   "Defaulting to (s)ingle offset")
             return 's'
 
     def get_url(self):
@@ -47,8 +60,9 @@ class ImageDownloader:
 
     def get_folder_name(self):
         """
-        Get final path of the URL and make that the name of the temporary folder
-        to store images in before combining into PDF 
+        Get final path of the URL and make that the name 
+        of the temporary folder to store images in before 
+        combining into PDF.
 
         (i.e. foo.com/directories/bar will make 'bar' the folder name)
         (also the name of the PDF later on; bar.pdf)
@@ -57,8 +71,8 @@ class ImageDownloader:
             last_slash = self.url.rindex('/')
             return self.url[last_slash + 1::]
         else:
-            return Path(self.url_file).stem # returns the name of the file without the extension
-
+            # The name of the file without the extension
+            return Path(self.url_file).stem 
     def __create_temporary_folder(self) -> None:
         """
         Create a directory and a subdirectory to put the images to download in
@@ -67,7 +81,8 @@ class ImageDownloader:
         if not is_path_conflict:
             subprocess.run(['mkdir', '-p', self.folder_name + '/' + "combined"])
         else:
-            print(f"\nFile or directory '{self.folder_name}(.pdf)' already exists; Exiting.")
+            print(f"\nFile or directory '{self.folder_name}(.pdf)'"
+                   " already exists; Exiting.")
             quit()
 
     def is_path_conflicts(self) -> bool:
@@ -98,20 +113,22 @@ class ImageDownloader:
             #Only want the URLs that begin with http or https
             if re.search('^http|^https', image_to_download):
                 file_name = f"{self.folder_name + '_' + str(i) + '.jpg'}"
-                subprocess.run(['curl', '-o', self.folder_name + '/' + file_name, image_to_download])
+                subprocess.run(['curl', '-o', self.folder_name + '/'
+                               + file_name, image_to_download])
                 self.images_to_convert.append(file_name)
                 i += 1
     
 
     def convert_images_to_RGB(self) -> None:
         """
-        Loops through each image downloaded and converts to RGB after opening
-        (PIL gets upset if not converted; need to look into it more)
+        Loops through each image downloaded and converts to RGB after 
+        opening (PIL gets upset if not converted; need to look into it more)
         """
         self.rgb_images = []
         for f in self.images_to_convert:
             try:
-                self.rgb_images.append(Image.open('./' + self.folder_name + '/' + f).convert('RGB')) # last method removes RGBA warning
+                self.rgb_images.append(Image.open('./' + self.folder_name + '/' + f)
+                    .convert('RGB')) # Last method removes RGBA warning
             except UnidentifiedImageError: 
                 traceback.print_exc()
             except:
@@ -129,7 +146,9 @@ class ImageDownloader:
 
         i = 0
         self.combined_images = []
-        if self.offset in self.VALID_OFFSETS[0]: # if wanting to put first image on it's own page
+
+        # To determine if the
+        if self.offset in self.VALID_OFFSETS[0]: 
             self.combined_images.append(file_name)
             if len(self.rgb_images) != 0:
                 self.rgb_images[0].save(file_name)
@@ -140,16 +159,26 @@ class ImageDownloader:
             total_width = 0
             try:
                 # If the width is greater than 1400, put that image on it's own page
-                if self.rgb_images[i].size[0] > self.rgb_images[i].size[1] or i == iter_max - 1 or (self.rgb_images[i].size[0] < self.rgb_images[i].size[1] and self.rgb_images[i + 1].size[0] > self.rgb_images[i+1].size[1] and i != 1):
+                    # size[0] -> width, size[1] -> height
+                if (self.rgb_images[i].size[0] > self.rgb_images[i].size[1]
+                    or i == iter_max - 1
+                    or (self.rgb_images[i].size[0] < self.rgb_images[i].size[1]
+                        and self.rgb_images[i + 1].size[0] > self.rgb_images[i+1].size[1]
+                        and i != 1)):
                     file_name = self.folder_name + "/combined/image_" + str(i) + ".jpg"
                     self.rgb_images[i].save(file_name)
                     self.combined_images.append(file_name)
                     i += 1
-                elif i < iter_max - 1 and self.rgb_images[i].size[0] < self.rgb_images[i].size[1] and self.rgb_images[i+1].size[0] < self.rgb_images[i + 1].size[1]:
+
+                elif (i < iter_max - 1 
+                      and self.rgb_images[i].size[0] < self.rgb_images[i].size[1] 
+                      and self.rgb_images[i+1].size[0] < self.rgb_images[i + 1].size[1]):
+
                     image_array = [self.rgb_images[i + 1], self.rgb_images[i]]
+
                     total_width = 0
                     max_height = 0
-                    # find the width and height of the final image
+                    # Find the width and height of the final image
                     for img in image_array:
                         total_width += img.size[0]
                         max_height = max(max_height, img.size[1])
@@ -182,7 +211,10 @@ class ImageDownloader:
         
         #Save the combined images in a new pdf
         images[0].save(
-                pdf_path, "PDF" ,resolution=100.0, save_all=True, append_images=images[1::]
+                pdf_path, "PDF", 
+                resolution=100.0, 
+                save_all=True,
+                append_images=images[1::]
         )
     
     def run(self) -> None:
