@@ -10,8 +10,9 @@ import argparse
 
 class ImageDownloader:
     VALID_OFFSETS = [
-        's', 'single',
-        'd', 'double'
+        ['s', 'single'],
+        ['d', 'double'],
+        ['c', 'combo']
         ]
 
     PARSER = argparse.ArgumentParser(
@@ -19,7 +20,7 @@ class ImageDownloader:
                      "a side-by-side PDF (optimized manga)")
     PARSER.add_argument("-o", "--offset", type=str,
         help="used to specify if the first page should "
-             "be a (s)ingle or (d)ouble spread")
+             "be a (s)ingle, (d)ouble spread, or (c)ombo (leaves first page by itself and combines 2nd/3rd image)")
     PARSER.add_argument("-f", "--file", type=str,
         help='specify text file of URLs from which to download')
      
@@ -39,6 +40,7 @@ class ImageDownloader:
         Options are: 
             single, s -> for Single first Page
             double, d -> for doubled first page
+            combo, c --> combination (leaves first page by itself and combines 2nd/3rd image)
         """
         if (self.args.offset in 
            (item for sublist in self.VALID_OFFSETS for item in sublist)):
@@ -107,6 +109,7 @@ class ImageDownloader:
         image_links = soup.find_all("img")
         images_to_convert = []
         i = 0
+        print(f"Downloading {self.folder_name}")
         for image in image_links:
 
             #Obtain the URL of the image on in each img tag
@@ -138,6 +141,37 @@ class ImageDownloader:
                 traceback.print_exc()
         return rgb_images
 
+    def save_double_page(self, rgb_images, combined_images, i):
+        """
+        Since manga is read left to right, the order of the images on the
+        page is as so:
+        ----------------------
+        |         ||         |
+        |         ||         |
+        |    2    ||    1    |
+        |         ||         |
+        |         ||         |
+        ----------------------
+        """
+        image_array = [rgb_images[i + 1], rgb_images[i]]
+
+        total_width = 0
+        max_height = 0
+        # Find the width and height of the final image
+        for img in image_array:
+            total_width += img.size[0]
+            max_height = max(max_height, img.size[1])
+
+        new_img = Image.new('RGB', (total_width, max_height))
+        current_width = 0
+        file_name = self.folder_name + "/combined/image_" + str(i) + ".jpg"
+        # Create a new image, combinding two images side by side
+        for img in image_array:
+            new_img.paste(img, (current_width,0))
+            current_width += img.size[0]
+        new_img.save(file_name)
+        combined_images.append(file_name)
+
     def combine_images(self, rgb_images) -> list:
 
         iter_max = len(rgb_images)
@@ -149,21 +183,27 @@ class ImageDownloader:
 
         i = 0
         combined_images = []
-
         # To determine if the
         if self.offset in self.VALID_OFFSETS[0]: 
-            combined_images.append(file_name)
             if len(rgb_images) != 0:
+                combined_images.append(file_name)
                 rgb_images[0].save(file_name)
             i = 1
+        elif self.offset in self.VALID_OFFSETS[1]:
+            self.save_double_page(rgb_images, combined_images, i)
+            i = 2
+        elif self.offset in self.VALID_OFFSETS[2]:
+            if len(rgb_images) > 2:
+                combined_images.append(file_name)
+                rgb_images[0].save(file_name)
+            self.save_double_page(rgb_images, combined_images, i=1)
+            i = 3
 
         while i < iter_max:
-            max_height = 0
-            total_width = 0
             try:
                 # If the width is greater than 1400, put that image on it's own page
                     # size[0] -> width, size[1] -> height
-                if (rgb_images[i].size[0] > rgb_images[i].size[1]
+                if (rgb_images[i].size[0] > rgb_images[i].size[1] 
                     or i == iter_max - 1
                     or (rgb_images[i].size[0] < rgb_images[i].size[1]
                         and rgb_images[i + 1].size[0] > rgb_images[i+1].size[1]
@@ -176,25 +216,7 @@ class ImageDownloader:
                 elif (i < iter_max - 1 
                       and rgb_images[i].size[0] < rgb_images[i].size[1] 
                       and rgb_images[i+1].size[0] < rgb_images[i + 1].size[1]):
-
-                    image_array = [rgb_images[i + 1], rgb_images[i]]
-
-                    total_width = 0
-                    max_height = 0
-                    # Find the width and height of the final image
-                    for img in image_array:
-                        total_width += img.size[0]
-                        max_height = max(max_height, img.size[1])
-
-                    new_img = Image.new('RGB', (total_width, max_height))
-                    current_width = 0
-                    file_name = self.folder_name + "/combined/image_" + str(i) + ".jpg"
-                    # Create a new image, combinding two images side by side
-                    for img in image_array:
-                        new_img.paste(img, (current_width,0))
-                        current_width += img.size[0]
-                    new_img.save(file_name)
-                    combined_images.append(file_name)
+                    self.save_double_page(rgb_images, combined_images, i)
                     i += 2
             except KeyboardInterrupt:
                 traceback.print_exc()
