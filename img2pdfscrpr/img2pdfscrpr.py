@@ -7,6 +7,7 @@ import re
 import traceback
 from pathlib import Path
 import argparse
+import sys
 
 class ImageDownloader:
     VALID_OFFSETS = [
@@ -14,6 +15,7 @@ class ImageDownloader:
         ['d', 'double'],
         ['c', 'combo']
         ]
+    USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12.6; rv:104.0) Gecko/20100101 Firefox/104.0'
 
     PARSER = argparse.ArgumentParser(
         description="Downloads images from webpages and generates "
@@ -23,7 +25,7 @@ class ImageDownloader:
              "be a (s)ingle, (d)ouble spread, or (c)ombo (leaves first page by itself and combines 2nd/3rd image)")
     PARSER.add_argument("-f", "--file", type=str,
         help='specify text file of URLs from which to download')
-     
+
     def __init__(self):
         self.args = self.PARSER.parse_args()
         self.offset = self.check_page_offset() 
@@ -58,8 +60,10 @@ class ImageDownloader:
         print()
         return url 
 
-    def set_url(self) -> None:
-        if self.args.file:
+    def set_url(self, url="") -> None:
+        if url != "":
+            self.url = url
+        elif self.args.file:
             pass
         else:
             url = self.__get_url()
@@ -85,9 +89,8 @@ class ImageDownloader:
         if not is_path_conflict:
             subprocess.run(['mkdir', '-p', self.folder_name + '/' + "combined"])
         else:
-            print(f"\nFile or directory '{self.folder_name}(.pdf)'"
+            sys.exit(f"\nFile or directory '{self.folder_name}(.pdf)'"
                    " already exists; Exiting.")
-            quit()
 
     def is_path_conflicts(self) -> bool:
         """
@@ -106,26 +109,33 @@ class ImageDownloader:
         soup = BeautifulSoup(response.text, "html.parser")
 
         #Obtain all img tags at the specified URL
-        image_links = soup.find_all("img")
-        images_to_convert = []
         i = 0
-        print(f"Downloading {self.folder_name}")
-        for image in image_links:
+        images_to_convert = []
+        try:
+            image_links = soup.find_all("img")
+            for image in image_links:
 
-            #Obtain the URL of the image on in each img tag
-            image_to_download = image["src"]
+                #Obtain the URL of the image on in each img tag
+                image_to_download = image["src"]
 
-            #Only want the URLs that begin with http or https
-            if re.search('^http|^https', image_to_download):
-                file_name = f"{self.folder_name + '_' + str(i) + '.jpg'}"
-                subprocess.run(['curl', '-o', self.folder_name + '/'
-                               + file_name, image_to_download])
-                images_to_convert.append(file_name)
-                i += 1
-    
+                #Only want the URLs that begin with http or https
+                if re.search('^http|^https', image_to_download):
+                    file_name = f"{self.folder_name + '_' + str(i) + '.jpg'}"
+                    subprocess.run(
+                        ['curl', '--user-agent',
+                         self.USER_AGENT, '-o',
+                         self.folder_name + '/' + file_name,
+                         image_to_download])
+                    images_to_convert.append(file_name)
+                    i += 1
+        except KeyboardInterrupt:
+            sys.exit(f"Stopping download of {self.folder_name}")
+        except Exception:
+            traceback.print_exc()
+
         return images_to_convert
 
-    def convert_images_to_RGB(self, images_to_convert) -> list:
+    def __convert_images_to_RGB(self, images_to_convert) -> list:
         """
         Loops through each image downloaded and converts to RGB after 
         opening (PIL gets upset if not converted; need to look into it more)
@@ -220,7 +230,7 @@ class ImageDownloader:
                     i += 2
             except KeyboardInterrupt:
                 traceback.print_exc()
-                quit()
+                sys.exit()
             except:
                 traceback.print_exc()
         return combined_images
@@ -252,14 +262,15 @@ class ImageDownloader:
                     else:
                         self.img2pdf_from_url(url)
         except FileNotFoundError:
-            print(f"File {url_file} does not exist; exiting.")
-            quit()
+            sys.exit(f"File {url_file} does not exist; exiting.")
 
     def img2pdf_from_url(self, url):
         self.folder_name = self.get_folder_name(url)
         self.__create_temporary_folder()
+
+        print(f"Downloading {self.folder_name}")
         images = self.scrape_webpage(url)
-        rgb_images = self.convert_images_to_RGB(images)
+        rgb_images = self.__convert_images_to_RGB(images)
         combined_images = self.combine_images(rgb_images)
         self.generate_pdf(combined_images)
         self.cleanup()
