@@ -21,14 +21,12 @@ class Img2PDFScrpr:
     USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12.6; rv:105.0) Gecko/20100101 Firefox/105.0'
 
     def __init__(self, url: Optional[str]=None, offset:str = "s", direction:str = "<-", url_file: Optional[str]=None ): #, offset: str = "s"):
-        self.url = self._clean_url(url)
         self.offset = self._check_page_offset(offset)
         self._reading_direction = self._check_reading_direction(direction)
 
         # Optionals
+        self.url = url
         self.url_file = url_file
-
-        self.folder_name = self._get_folder_name(self.url)
 
     def _check_page_offset(self, offset: str) -> str:
         """ 
@@ -247,21 +245,17 @@ class Img2PDFScrpr:
                 append_images=images[1::]
         )
 
-    def run(self, url:Optional[str]=None) -> None:
-        if url is None:
-            url = self.url
-        self._create_temporary_folder()
-        print(f"Downloading {self.folder_name}")
-        image_paths = self.scrape_webpage(self.url)
-        rgb_images = self._open_images(image_paths)
-        combined_images = self._combine_images(rgb_images)
-        self._generate_pdf(combined_images)
+    def run(self, url:Optional[str]=None, url_file:Optional[str]=None, cleanup: bool=True) -> None:
+        if url is not None:
+            self.img2pdf_from_url(url)
+        elif url_file is not None:
+            self.img2pdf_from_file(url_file)
 
     def cleanup(self) -> None:
         #Cleanup images in directory
         subprocess.run(['rm', '-rf', self.folder_name])
 
-    def img2pdf_from_file(self, url_file: str) -> None:
+    def img2pdf_from_file(self, url_file: str, cleanup: bool=True) -> None:
         try:
             with open(url_file, "r") as file:
                 urls = file.readlines()
@@ -270,20 +264,20 @@ class Img2PDFScrpr:
                     if url == "":
                         pass
                     else:
-                        self.run(url)
+                        self.img2pdf_from_url(url)
         except FileNotFoundError:
             sys.exit(f"File {url_file} does not exist; exiting.")
 
-    def img2pdf_from_url(self, url):
+    def img2pdf_from_url(self, url:str, cleanup: bool=True):
         self.folder_name = self._get_folder_name(url)
         self._create_temporary_folder()
-
         print(f"Downloading {self.folder_name}")
         images = self.scrape_webpage(url)
         rgb_images = self._open_images(images)
         combined_images = self._combine_images(rgb_images)
         self._generate_pdf(combined_images)
-        self.cleanup()
+        if cleanup:
+            self.cleanup()
 
         
 @click.command()
@@ -295,26 +289,8 @@ class Img2PDFScrpr:
               help="specifies the url whose images are to be fetched and converted")
 
 def main(offset, file, url):
-    if file is not None:
-        obj = Img2PDFScrpr(url, offset)
-        try:
-            with open(file, "r") as f:
-                urls = f.readlines()
-                for url in urls:
-                    url = url.strip()
-                    if url == "":
-                        pass
-                    else:
-                        obj.run(url)
-                        obj.cleanup()
-        except FileNotFoundError:
-            sys.exit(f"File {file} does not exist; exiting.")
-    elif url is not None:
-        obj = Img2PDFScrpr(url, offset)
-        obj.run()
-        obj.cleanup()
-        
-        
+    obj = Img2PDFScrpr(offset)
+    obj.run(url=url, url_file=file)
 
 if __name__ == "__main__":
     main()
